@@ -1,9 +1,6 @@
 package io.github.goodees.ese.store.subscription;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Specification of event of interest to a subscriber.
@@ -20,18 +17,31 @@ public interface EventSpec {
      * @return
      */
     static EntityIdEquals forEntities(String... entityIds) {
+        return forEntities(Arrays.asList(entityIds));
+    }
+
+    /**
+     * Spec that matches events for any of provided entities.
+     * @param entityIds
+     * @return
+     */
+    static EntityIdEquals forEntities(Collection<String> entityIds) {
         return new EntityIdEquals(entityIds);
     }
 
     static EventTypeEquals forEventTypes(String... eventTypes) {
+        return forEventTypes(Arrays.asList(eventTypes));
+    }
+
+    static EventTypeEquals forEventTypes(Collection<String> eventTypes) {
         return new EventTypeEquals(eventTypes);
     }
 
-    class EntityIdEquals {
+    class EntityIdEquals implements EventSpec {
         private final Set<String> ids;
 
-        EntityIdEquals(String... entityIds) {
-            this.ids = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(entityIds)));
+        EntityIdEquals(Collection<String> entityIds) {
+            this.ids = Collections.unmodifiableSet(new HashSet<>(entityIds));
         }
 
         public Set<String> getIds() {
@@ -39,11 +49,11 @@ public interface EventSpec {
         }
     }
 
-    class EventTypeEquals {
+    class EventTypeEquals implements EventSpec {
         private final Set<String> types;
 
-        EventTypeEquals(String... eventTypes) {
-            this.types = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(eventTypes)));
+        EventTypeEquals(Collection<String> eventTypes) {
+            this.types = Collections.unmodifiableSet(new HashSet<>(eventTypes));
         }
 
         public Set<String> getTypes() {

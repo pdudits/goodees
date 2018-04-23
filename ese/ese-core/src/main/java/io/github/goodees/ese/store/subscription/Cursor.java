@@ -6,7 +6,7 @@ package io.github.goodees.ese.store.subscription;
  * to hold its current cursor in its state.
  *
  */
-public interface Cursor {
+public interface Cursor<C> extends Comparable<C> {
     /**
      * Generate serialized version of a cursor.
      * @return
@@ -22,4 +22,5 @@ public interface Cursor {
     static SerializedCursor fromSerializedForm(String serializedForm) {
         return new SerializedCursor(serializedForm);
     }
+
 }

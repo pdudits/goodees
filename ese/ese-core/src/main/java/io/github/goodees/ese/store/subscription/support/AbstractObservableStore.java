@@ -1,15 +1,14 @@
 package io.github.goodees.ese.store.subscription.support;
 
+import io.github.goodees.ese.core.Event;
 import io.github.goodees.ese.store.subscription.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -73,6 +72,37 @@ public abstract class AbstractObservableStore<C extends Cursor<C>, D extends Sub
 
     protected abstract ExecutorService executorService();
 
+    protected void eventPersisted(Event event) {
+        if (matchingRunning.compareAndSet(false, true)) {
+            executorService().submit(this::matchProcess);
+        }
+    }
+
+    private void notifySubscriptions(Event event) {
+        activeSubscriptions.values().stream().filter(
+                sub -> sub.shouldCheck() && sub.matcher.matches(event) && sub.shouldNotify())
+          .forEach(ActiveSubscription::sendNotification);
+    }
+
+    private BlockingDeque<Event> matchQueue = new LinkedBlockingDeque<>();
+    private AtomicBoolean matchingRunning = new AtomicBoolean(false);
+    private void matchProcess() {
+        try {
+            Event event = null;
+            do {
+                while ((event = matchQueue.pollLast(5, TimeUnit.SECONDS)) != null) {
+                    notifySubscriptions(event);
+                }
+                // what's that trick here again?
+                // if new event arrives before that line, and the compare and set below...
+            } while (!matchingRunning.compareAndSet(true, false));
+        } catch (InterruptedException ie) {
+            logger.warn("Interrupted while matching ",ie);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+
     @Override
     public void activateNotification(Subscription.Descriptor subscription, Consumer<String> callback) {
         ActiveSubscription sub = new ActiveSubscription(parseDescriptor(subscription), callback);
@@ -95,7 +125,9 @@ public abstract class AbstractObservableStore<C extends Cursor<C>, D extends Sub
         return activeSubscriptions.get(subscriptionId);
     }
 
-    protected abstract Set<EventSpec> getSubscriptionSpec(D descriptor);
+    protected Set<EventSpec> getSubscriptionSpec(D descriptor) {
+        return descriptorSupport.getEventSpec(descriptor);
+    }
 
     enum SubscriptionStatus {
         IDLE, NOTIFIED, INCOMPLETE_CHUNK_SENT, COMPLETE_CHUNK_SENT, PENDING_NOTIFICATION;
@@ -105,13 +137,13 @@ public abstract class AbstractObservableStore<C extends Cursor<C>, D extends Sub
         final String id;
         final AtomicReference<C> sentNextCursor = new AtomicReference<>(null);
         final AtomicReference<SubscriptionStatus> status = new AtomicReference<>(SubscriptionStatus.IDLE);
-        final Set<EventSpec> spec;
+        final SpecMatcher matcher;
         final Consumer<String> callback;
 
         public ActiveSubscription(D descriptor, Consumer<String> callback) {
             this.id = getSubscriptionId(descriptor);
             this.callback = callback;
-            this.spec = getSubscriptionSpec(descriptor);
+            this.matcher = new SpecMatcher(getSubscriptionSpec(descriptor));
         }
 
         boolean shouldCheck() {

@@ -10,8 +10,10 @@ import org.immutables.value.Value;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
 @Value.Immutable
 public interface SubscriptionDescriptor extends Subscription.Descriptor {
@@ -29,8 +31,8 @@ public interface SubscriptionDescriptor extends Subscription.Descriptor {
     List<SerializedSpec> serializedSpec();
 
     @Value.Auxiliary
-    default List<EventSpec> eventSpec() {
-        return serializedSpec().stream().map(SerializedSpec::toEventSpec).collect(toList());
+    default Set<EventSpec> eventSpec() {
+        return serializedSpec().stream().map(SerializedSpec::toEventSpec).collect(toSet());
     }
 
     @JsonSubTypes({
@@ -121,6 +123,11 @@ public interface SubscriptionDescriptor extends Subscription.Descriptor {
         @Override
         protected String getSubscriptionId(SubscriptionDescriptor descriptor) {
             return descriptor.subscriptionId();
+        }
+
+        @Override
+        protected Set<EventSpec> getEventSpec(SubscriptionDescriptor descriptor) {
+            return descriptor.eventSpec();
         }
     }
 }

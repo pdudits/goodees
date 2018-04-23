@@ -1,8 +1,11 @@
 package io.github.goodees.ese.store.subscription.support;
 
+import io.github.goodees.ese.store.subscription.EventSpec;
 import io.github.goodees.ese.store.subscription.ObservableStoreException;
 import io.github.goodees.ese.store.subscription.SerializedDescriptor;
 import io.github.goodees.ese.store.subscription.Subscription;
+
+import java.util.Set;
 
 public abstract class DescriptorSupport<D extends Subscription.Descriptor> {
     private Class<D> descriptorClass;
@@ -37,4 +40,6 @@ public abstract class DescriptorSupport<D extends Subscription.Descriptor> {
     protected abstract D parseDescriptor(String s) throws Exception;
 
     protected abstract String getSubscriptionId(D descriptor);
+
+    protected abstract Set<EventSpec> getEventSpec(D descriptor);
 }

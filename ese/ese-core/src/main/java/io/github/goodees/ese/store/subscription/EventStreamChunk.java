@@ -4,14 +4,14 @@ import io.github.goodees.ese.core.Event;
 import io.github.goodees.ese.core.Request;
 
 import java.util.List;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * Entity request delivering batch of events matched for a subscription.
- * @see ObservableStore#poll(Subscription.Descriptor, Cursor, int, Function)
+ * @see ObservableStore#poll(Subscription.Descriptor, Cursor, int, Dispatch)
  */
-public interface EventStreamChunk extends Request<Void> {
+public interface EventStreamChunk extends Request<Cursor<?>> {
     /**
      * The id of subscription events relate to.
      * @return
@@ -39,10 +39,15 @@ public interface EventStreamChunk extends Request<Void> {
     Cursor nextCursor();
 
     /**
-     * Indication that there are more matching events. If store sets this to true in response to {@link ObservableStore#poll(Subscription.Descriptor, Cursor, int, Function)}, it expects client to call poll again.
+     * Indication that there are more matching events. If store sets this to true in response to {@link ObservableStore#poll(Subscription.Descriptor, Cursor, int, Dispatch)}, it expects client to call poll again.
      * Specifically, it might not invoke callback provided to {@link ObservableStore#activateNotification(Subscription.Descriptor, Consumer)}
      * when there are more matching events.
      * @return true if next request is guaranteed to return more chunks.
      */
     boolean hasMoreChunks();
+
+    @FunctionalInterface
+    interface Dispatch {
+        CompletionStage<Cursor<?>> dispatch(EventStreamChunk request);
+    }
 }

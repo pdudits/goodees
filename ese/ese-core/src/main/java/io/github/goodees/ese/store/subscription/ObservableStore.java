@@ -1,10 +1,8 @@
 package io.github.goodees.ese.store.subscription;
 
 
-import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public interface ObservableStore {
     /**
@@ -36,13 +34,13 @@ public interface ObservableStore {
      * @param dispatch
      * @throws ObservableStoreException when descriptor or cursor is invalid
      */
-    void poll(Subscription.Descriptor subscription, Cursor cursor, int chunkSize, Function<EventStreamChunk, CompletionStage<Void>> dispatch);
+    void poll(Subscription.Descriptor subscription, Cursor cursor, int chunkSize, EventStreamChunk.Dispatch dispatch);
 
     /**
      * Register a notification callback for an subscription. When the store identifies a message matching this subscription
      * having been persisted, it will invoke the callback. The callback should invoke the subscriber who can then poll
      * for the new events.
-     * <p>Store will cease calling futher callbacks until {@link #poll(String, Cursor, int, Function) poll} is invoked
+     * <p>Store will cease calling futher callbacks until {@link #poll(Subscription.Descriptor, Cursor, int, EventStreamChunk.Dispatch) poll} is invoked
      * for the subscription.</p>
      * @param subscription descriptor of the subscription either in original or serialized form
      * @param callback callback should be quick and just indirectly queue execution of actual poll process. It will be

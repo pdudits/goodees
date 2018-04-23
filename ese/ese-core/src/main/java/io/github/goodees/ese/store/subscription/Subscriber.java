@@ -17,15 +17,17 @@ import static java.util.stream.Collectors.toSet;
 /**
  * A sample implementation of subscriber to a {@link ObservableStore}.
  *
- * <p>It is designed as a mixin class to an EventSourcedEntity and handle the aspects of continuosly query the store.</p>
+ * <p>It is designed as a mixin class to an EventSourcedEntity and handle the aspects of continuously query the store.</p>
  */
 public abstract class Subscriber {
     private final Logger defaultLogger = LoggerFactory.getLogger(getClass());
     private final ObservableStore store;
+    private String subscriberId;
     private Map<String, SubscriptionState> subscriptions;
 
-    protected Subscriber(ObservableStore store) {
+    protected Subscriber(ObservableStore store, String subscriberId) {
         this.store = store;
+        this.subscriberId = subscriberId;
     }
 
     /**
@@ -34,17 +36,20 @@ public abstract class Subscriber {
      * @param specs
      */
     public void register(String tag, EventSpec... specs) {
-        Subscription subscription = store.register(new Registration(tag, specs));
+        Subscription subscription = store.register(new Registration(tag, subscriberId, specs));
+        SubscriptionState state = get(subscription.getId());
         persistEvent(eventFactory().subscriptionRegistered(subscription.getId(), tag,
-                get(subscription.getId()).willPersistCursor(subscription.initialCursor())), () -> {
+                state.willPersistDescriptor(subscription.getDescriptor()),
+                state.willPersistCursor(subscription.initialCursor())),
+                () -> {
             if (shouldActivateNotification(tag)) {
-                store.activateNotification(subscription.getId(), notificationCallback());
+                store.activateNotification(state.descriptor, notificationCallback());
             }
         });
     }
 
     public void unregister(String subscriptionId) {
-        store.unregister(subscriptionId);
+        store.unregister(get(subscriptionId).descriptor);
     }
 
     private SubscriptionState get(String subscriptionId) {
@@ -56,7 +61,7 @@ public abstract class Subscriber {
         if (state.lastCursor == null) {
             logger().error("Poll was invoked for {}, but there is no cursor, which is quite impossible", subscriptionId);
         }
-        store.poll(subscriptionId, state.lastCursor, preferredChunkSize(), pollCallback());
+        store.poll(state.descriptor, state.lastCursor, preferredChunkSize(), pollCallback());
     }
 
     /**
@@ -90,7 +95,7 @@ public abstract class Subscriber {
 
         // register notifications for relevant subscriptions
         subscriptions.values().stream().filter(s -> shouldActivateNotification(s.tag))
-                .forEach(s -> store.activateNotification(s.subscriptionId, notificationCallback()));
+                .forEach(s -> store.activateNotification(s.descriptor, notificationCallback()));
     }
 
     /**
@@ -163,7 +168,7 @@ public abstract class Subscriber {
     protected abstract void persistEvent(SubscriptionEvent event, Runnable whenComplete);
 
     interface EventFactory {
-        SubscriptionRegistered subscriptionRegistered(String subscriptionId, String tag, String cursor);
+        SubscriptionRegistered subscriptionRegistered(String subscriptionId, String tag, String descriptor, String cursor);
         CursorUpdated cursorUpdated(String subscriptionId, String cursor);
     }
 
@@ -176,6 +181,7 @@ public abstract class Subscriber {
     }
 
     interface SubscriptionRegistered extends CursorUpdated {
+        String descriptor();
         String tag();
     }
 
@@ -184,9 +190,12 @@ public abstract class Subscriber {
         private String tag;
 
         private Cursor lastCursor;
+        private Subscription.Descriptor descriptor;
 
         private Cursor cursorToBeStored;
         private String serializedCursorToBeStored;
+        private String serializedDescriptorToBeStored;
+        private Subscription.Descriptor descriptorToBeStored;
 
         SubscriptionState(String subscriptionId) {
             this.subscriptionId = subscriptionId;
@@ -196,6 +205,13 @@ public abstract class Subscriber {
             String serialized = c.toSerializedForm();
             this.serializedCursorToBeStored = serialized;
             this.cursorToBeStored = c;
+            return serialized;
+        }
+
+        private String willPersistDescriptor(Subscription.Descriptor descriptor) {
+            String serialized = descriptor.toSerializedForm();
+            this.serializedDescriptorToBeStored = serialized;
+            this.descriptorToBeStored = descriptor;
             return serialized;
         }
 
@@ -209,9 +225,20 @@ public abstract class Subscriber {
             this.serializedCursorToBeStored = null;
         }
 
+        void updateDescriptor(String serializedDescriptor) {
+            if (serializedDescriptor.equals(serializedDescriptorToBeStored)) {
+                this.descriptor = descriptorToBeStored;
+            } else {
+                this.descriptor = Subscription.Descriptor.fromSerializedForm(serializedDescriptor);
+            }
+            this.descriptorToBeStored = null;
+            this.serializedCursorToBeStored = null;
+        }
+
         public void update(SubscriptionEvent event) {
             if (event instanceof SubscriptionRegistered) {
                 this.tag = ((SubscriptionRegistered) event).tag();
+                updateDescriptor(((SubscriptionRegistered) event).descriptor());
             }
             if (event instanceof CursorUpdated) {
                 updateCursor(((CursorUpdated)event).cursor());

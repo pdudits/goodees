@@ -27,17 +27,14 @@ public interface ObservableStore {
      * <p>The result of the dispatch function may be used to optimize notification flow, disabling any online matching
      * of events until the returned CompletionStage completes.</p>
      *
-     * <p>Oepn point - As noted in {@link EventSpec}, the result may also contain non-matching events if store does not
-     * support the given spec, or if it cannot effectively match the spec in the stream. The more I write it the more
-     * it starts to sound like a bad idea.</p>
      *
-     * @param subscriptionId id of the subscription
+     * @param subscription descriptor of the subscription either in original or serialized form
      * @param cursor subscription's cursor. Implementations should accept their own specific cursor as well as be able to
      *               deserialize a {@link SerializedCursor}.
      * @param chunkSize maximum number of events to provide in an EventStreamChunk.
      * @param dispatch
      */
-    void poll(String subscriptionId, Cursor cursor, int chunkSize, Function<EventStreamChunk, CompletionStage<Void>> dispatch);
+    void poll(Subscription.Descriptor subscription, Cursor cursor, int chunkSize, Function<EventStreamChunk, CompletionStage<Void>> dispatch);
 
     /**
      * Register a notification callback for an subscription. When the store identifies a message matching this subscription
@@ -45,22 +42,22 @@ public interface ObservableStore {
      * for the new events.
      * <p>Store will cease calling futher callbacks until {@link #poll(String, Cursor, int, Function) poll} is invoked
      * for the subscription.</p>
-     * @param subscriptionId
+     * @param subscription descriptor of the subscription either in original or serialized form
      * @param callback callback should be quick and just indirectly queue execution of actual poll process. It will be
      *                 called with subscriptionId passed as a parameter
      */
-    void activateNotification(String subscriptionId, Consumer<String> callback);
+    void activateNotification(Subscription.Descriptor subscription, Consumer<String> callback);
 
     /**
-     * Unregister notification callback for the subscriptin.
-     * @param subscriptionId
+     * Unregister notification callback for the subscription.
+     * @param subscription
      */
-    void deactivateNotification(String subscriptionId);
+    void deactivateNotification(Subscription.Descriptor subscription);
 
     /**
      * Unregister a subscription. Notification call back as well as all internal state for the subscription is removed
      * from the store.
-     * @param subscriptionId
+     * @param subscription
      */
-    void unregister(String subscriptionId);
+    void unregister(Subscription.Descriptor subscription);
 }

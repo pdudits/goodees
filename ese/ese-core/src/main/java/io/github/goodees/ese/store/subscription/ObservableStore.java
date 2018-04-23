@@ -10,7 +10,8 @@ public interface ObservableStore {
     /**
      * Register a subscription. The store prepares its internal state for tracking a subscription.
      * @param registration
-     * @return
+     * @return subscription
+     * @throws ObservableStoreException when any of the given specs in unsupported.
      */
     Subscription register(Registration registration);
 
@@ -33,6 +34,7 @@ public interface ObservableStore {
      *               deserialize a {@link SerializedCursor}.
      * @param chunkSize maximum number of events to provide in an EventStreamChunk.
      * @param dispatch
+     * @throws ObservableStoreException when descriptor or cursor is invalid
      */
     void poll(Subscription.Descriptor subscription, Cursor cursor, int chunkSize, Function<EventStreamChunk, CompletionStage<Void>> dispatch);
 
@@ -45,12 +47,14 @@ public interface ObservableStore {
      * @param subscription descriptor of the subscription either in original or serialized form
      * @param callback callback should be quick and just indirectly queue execution of actual poll process. It will be
      *                 called with subscriptionId passed as a parameter
+     * @throws ObservableStoreException when provided descriptor is invalid
      */
     void activateNotification(Subscription.Descriptor subscription, Consumer<String> callback);
 
     /**
      * Unregister notification callback for the subscription.
      * @param subscription
+     * @throws ObservableStoreException when provided descriptor is invalid
      */
     void deactivateNotification(Subscription.Descriptor subscription);
 
@@ -58,6 +62,7 @@ public interface ObservableStore {
      * Unregister a subscription. Notification call back as well as all internal state for the subscription is removed
      * from the store.
      * @param subscription
+     * @throws ObservableStoreException when provided descriptor is invalid
      */
     void unregister(Subscription.Descriptor subscription);
 }
